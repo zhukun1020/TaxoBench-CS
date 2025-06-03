@@ -1,0 +1,13 @@
+html2text==2024.2.26
+tqdm==4.67.1
+beautifulsoup4==4.12.3
+nltk==3.9.1
+numpy==1.26.4
+torch==2.5.1
+tiktoken==0.7.0
+transformers==4.49.0
+openai==1.55.3
+umap-learn==0.5.3
+scikit-learn==1.4.1.post1
+scipy==1.12.0
+
