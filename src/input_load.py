@@ -5,7 +5,7 @@ import time
 import os
 from tqdm import tqdm
 import html2text
-
+import random
 from bs4 import BeautifulSoup
 
 
@@ -128,7 +128,7 @@ class DataLoader:
         if os.path.exists(intro_path):
             with open(intro_path, 'r', encoding='utf-8') as f:
                 intro_text = f.readlines()
-            return intro_text
+            return '\n'.join(intro_text)
         else:
             return ""
 
@@ -181,6 +181,46 @@ class DataLoader:
             if len(intro_text) > 0:
                 papers[id] = intro_text
         return papers
+
+
+    def __sample_intro_files(self, loaded_id_set, n):
+        # 获取所有以.md结尾的文件
+        folder_path = self.md_path
+        md_files = [f for f in os.listdir(folder_path) if f.endswith('.intro') and os.path.isfile(os.path.join(folder_path, f)) and f.strip(".intro") not in loaded_id_set]
+        
+        # 如果文件数不足n，则取全部
+        sample_count = min(n, len(md_files))
+
+        if sample_count < 1:
+            return []
+        
+        # 随机抽取sample_count个文件
+        sampled_files = random.sample(md_files, sample_count)
+        sampled_ids = [f.strip(".intro").replace("ovo","/") for f in sampled_files]
+        sampled_papers = []
+        for filename,paperid in zip(sampled_files,sampled_ids):
+            intro_path = os.path.join(folder_path, filename)
+            with open(intro_path, 'r', encoding='utf-8') as f:
+                intro_text = f.readlines()
+            sampled_papers.append({
+                "arxiv_id":paperid,
+                "introduction": '\n'.join(intro_text)
+            })
+
+        sampled_aids = ["ArXiv:"+pid for pid in sampled_ids]
+
+        sampled_paper_info = self.__search_id_batch(sampled_aids)
+        # print(len(sampled_paper_info), len(sampled_papers))
+        assert len(sampled_paper_info) == len(sampled_papers)
+        
+        for paper_meta, paper_info in zip(sampled_paper_info,sampled_papers):
+            if paper_meta is not None:
+                paper_info["paperId"]=paper_meta["paperId"]
+                paper_info["title"]=paper_meta["title"]
+                paper_info["abstract"]=paper_meta["abstract"]
+
+        # 返回
+        return sampled_papers
 
 #  db_path = f"/home/kunzhu/projects/AutoSurvey-main/database/survey_db/{arxiv_id}/paper_info_db.json"
     def load_survey_papers_from_dbpath(self):
@@ -271,6 +311,55 @@ class DataLoader:
                 "introduction": intro_text
                 })
             paper_index.append(int(index))
+
+        self.arxiv_ratio_list.append((len(papers), intro_count, intro_count/len(papers)))
+
+        return survey_info['title'], papers, paper_index
+    
+    def load_survey_papers_noise(self, data_path, ratio=0.1):
+
+        # survey = json.load(open(self.db_path,'r',encoding='utf-8'))
+        survey_info = json.load(open(data_path,'r',encoding='utf-8'))
+        papers_info = survey_info["papers"]
+
+        # papers = [{"paperId":p["paperId"],"title":p["title"],"abstract":p["abstract"],} for p in papers]
+        
+        paper_ssid_aid = {}
+        aid_set = set()
+        for index, paperInfo in papers_info.items():
+            ss_id = paperInfo["paperId"]
+            if paperInfo is not None and "externalIds" in paperInfo and "ArXiv" in paperInfo["externalIds"]:
+                paper_ssid_aid[ss_id] = paperInfo["externalIds"]["ArXiv"]   
+                aid_set.add(paperInfo["externalIds"]["ArXiv"])     
+
+        papers_content = self.__craw_paper_content(list(aid_set))
+
+        papers = []
+        paper_index = []
+        intro_count = 0
+        
+        for index, p in papers_info.items():
+            arxiv_id = paper_ssid_aid.get(p["paperId"],None)
+            intro_text = None
+            if arxiv_id is not None and arxiv_id in papers_content:
+                intro_count += 1
+                intro_text = papers_content[arxiv_id]
+
+            papers.append({
+                "paperId":p["paperId"], 
+                "arxiv_id":arxiv_id,
+                "title":p["title"],
+                "abstract":p["abstract"],
+                "introduction": intro_text
+                })
+            paper_index.append(int(index))
+
+        if ratio > 0:
+            noise_papers = self.__sample_intro_files(aid_set, int(len(papers)*ratio))
+            print(len(papers),len(noise_papers))
+            for paper in noise_papers:
+                papers.append(paper)
+                paper_index.append(len(paper_index))
 
         self.arxiv_ratio_list.append((len(papers), intro_count, intro_count/len(papers)))
 
