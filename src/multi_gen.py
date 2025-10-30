@@ -1,18 +1,3 @@
-# 📄 **论文标题**: [Paper Title]  
-# ✍ **作者**: [Authors]  
-# 📰 **发表会议/期刊**: [Venue]  
-# 📅 **发表时间**: [Year]  
-# 🎯 **研究问题**: [What problem does it address?]  
-# 🔑 **主要贡献**: [Key Contributions]  
-# 📊 **方法**: [Methodology Summary]  
-# 📈 **实验**: [Main Experimental Results]  
-# ⚠ **局限性**: [Limitations]  
-# 💡 **个人点评**: [Strengths, Weaknesses, Future Directions]  
-# 🔗 **代码/资源**: [GitHub Link / Dataset]  
-
-# from Keys import *
-# from openai import OpenAI
-# client = OpenAI(api_key=OPENAI_KEY, base_url=OPENAI_URL)
 import hashlib
 import time
 from itertools import combinations
@@ -27,7 +12,7 @@ from sklearn.metrics import silhouette_score
 import umap
 from tqdm import tqdm
 from scipy.special import softmax 
-
+from concurrent.futures import ThreadPoolExecutor
 from Prompt import *
 
 
@@ -554,43 +539,48 @@ class GenModel:
             for aspect_key in aspects.keys():
                 embedding_multi[aspect_key] = []
 
-        
-        for p_index, paper in enumerate(tqdm(papers)):
+        def __embedding_paper(paper):
 
-            if paper["arxiv_id"] is not None:
-                f_id = paper["arxiv_id"].replace("/","ovo")
-            else:
-                f_id = paper["paperId"]
+            f_id = paper["id"]
 
             multi_summ_cache = True
             if self.aspect_type == "single":
-                output_embedding = os.path.join(output_embedding_root+"_single", f"{paras['title']}", f'{f_id}')
+                output_embedding = os.path.join(output_embedding_root+"single", f"{paras['title']}", f'{f_id}')
 
             # elif self.aspect_type == "combine":
             #     output_embedding = os.path.join(output_embedding_root+"combine", f"{paras['title']}", f'{f_id}')
 
             else:
-                # topic_tmp = paras.get('topic','').split("_")[0].split("->")[0]
-                topic_tmp = paras.get('topic','')
-                save_tmp = os.path.join(output_multi_abs_root,f"{paras['title']}_{topic_tmp}", f'{f_id}_multi.json')
+                save_tmp = os.path.join(output_multi_abs_root,f"{paras['title']}_{paras.get('topic','')}", f'{f_id}_multi.json')
                 # print(save_tmp,aspects)
                 multi_aps = self.__generate_multi_abs(aspects, paper, save_tmp, level=level)
                 # print(aspects.keys(), multi_aps.keys())
+                count = 0 
                 while type(multi_aps) != dict or not self.__assert_aspects(aspects.keys(), multi_aps.keys()):
                     print("Try to re-generate multi aspects summary!", save_tmp)
                     print(multi_aps)
+                    print(aspects)
+                    if count > 5:
+                        print("ERROR!")
+                        # return [], papers
+                        multi_aps = {}
+                        for a in aspects:
+                            multi_aps[a] = paper["abstract"]
+                        break
+                        # exit(0)
                     multi_summ_cache = False
                     multi_aps = self.__generate_multi_abs(aspects, paper, save_tmp, level=level, cache=False)
+                    count += 1
                 # print(multi_aps)
                 if self.aspect_type != "dynamic_new":
                     for a_key, a_summary in multi_aps.items():
                         if "Not applicable" in a_summary:
-                            multi_aps[a_key] = paper["title"]                                        
+                            multi_aps[a_key] = paper["abstract"]                                        
                     
                 paper.update(multi_aps)
                 # print("Paper Update", multi_aps.keys(), paper.keys())
             # print(time.time()-start)
-                output_embedding = os.path.join(output_embedding_root, f"{paras['title']}_{topic_tmp}", f'{f_id}')
+                output_embedding = os.path.join(output_embedding_root, f"{paras['title']}_{paras.get('topic','')}", f'{f_id}')
             # else:
             #     output_embedding = os.path.join(output_embedding_root, f"{paras['title']}", f'{f_id}')
 
@@ -598,9 +588,16 @@ class GenModel:
                 output_embedding = os.path.join(output_embedding_root+"Combine", f"{paras['title']}", f'{f_id}')
 
             embedding_l = self.__generate_embeddings(paper, aspects, output_embedding, cache=multi_summ_cache)
+        
+            return embedding_l
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(tqdm(executor.map(__embedding_paper, papers), total=len(papers)))
 
-            for paper_tuplist in embedding_l: #(paper['title'], key, paper[key], np.array(embedding_obj.embedding))
+        for embedding_l_ in results:
+            for paper_tuplist in embedding_l_: #(paper['title'], key, paper[key], np.array(embedding_obj.embedding))
                 embedding_multi[paper_tuplist[1]].append(paper_tuplist)
+        
 
 
         final_cluster =  self.cluster_control(embedding_multi, self.aspect_k, self.final_k, self.dp_type, papers_l)
