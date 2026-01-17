@@ -78,7 +78,7 @@ This repository includes tools to **evaluate automatically–generated taxonomy 
 Run the evaluation script with the following command:
 
 ```bash
-python eval_auto.py \
+python eval-3/eval_auto.py \
   --gt_dir ./ground_outline \
   --pred_dir ./res/test/heading \
   --output_path ./Evaluation_Scores.txt
