@@ -249,30 +249,6 @@ def call_soft_heading(pred_paths, ground_paths):
 
 
 
-def main(args):
-    df = pd.read_csv(args.input_path)
-    entity_recalls = []
-    heading_soft_recalls = []
-    topics = []
-    for _, row in tqdm(df.iterrows()):
-        topic_name = row['topic'].replace(' ', '_').replace('/', '_')
-        gt_sections = get_sections(os.path.join(args.gt_dir, 'txt', f'{topic_name}.txt'))
-        # gt_sections = get_sections(os.path.join(args.gt_dir, 'txt', f'{topic_name}.txt'))
-        pred_sections = get_sections(os.path.join(args.pred_dir, topic_name, args.pred_file_name))
-        # pred_sections = get_sections(os.path.join(args.pred_dir, topic_name, args.pred_file_name))
-        entity_recalls.append(heading_entity_recall(golden_headings=gt_sections, predicted_headings=pred_sections))
-        heading_soft_recalls.append(heading_soft_recall(gt_sections, pred_sections))
-        topics.append(row['topic'])
-
-    results = pd.DataFrame({'topic': topics, 'entity_recall': entity_recalls, 'heading_soft_recall': heading_soft_recalls})
-    results.to_csv(args.result_output_path, index=False)
-    avg_entity_recall = sum(entity_recalls) / len(entity_recalls)
-    avg_heading_soft_recall = sum(heading_soft_recalls) / len(heading_soft_recalls)
-    print(f'Average Entity Recall: {avg_entity_recall}')
-    print(f'Average Heading Soft Recall: {avg_heading_soft_recall}')
-
-
-
 
 if __name__=="__main_":
     ground_path_root = "/home/kunzhu/projects/taxonomy_2/eval/ground_new_outline"

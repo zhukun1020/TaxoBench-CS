@@ -84,9 +84,9 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--gt_dir', type=str, default="./ground_outline", help='Path of human-written articles.')
     parser.add_argument('--pred_dir', type=str, default="./res/test/heading", help='Path of generated outlines.')
-    parser.add_argument('--result_output_path', type=str, default="Evaluation_Scores.txt", help='Path to save the results.')
+    parser.add_argument('--output_path', type=str, default="Evaluation_Scores.txt", help='Path to save the results.')
 
     args = parser.parse_args()
     print(args.pred_dir, args.gt_dir, args.result_output_path)
-    evaluations(args.pred_dir, args.gt_dir, args.result_output_path)
+    evaluations(args.pred_dir, args.gt_dir, args.output_path)
 
